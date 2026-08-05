@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI-Correlated Log Intelligence</title>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --border: #2a313c; --text: #e6edf3;
+    --muted: #8b949e; --accent: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .layout { display: flex; height: calc(100vh - 57px); }
+  #sidebar { width: 300px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; }
+  #sidebar .section-title { padding: 12px 14px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .incident-item { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+  .incident-item:hover { background: #1c2330; }
+  .incident-item.active { background: #1c2b3f; border-left: 3px solid var(--accent); }
+  .incident-item .title { font-weight: 600; margin-bottom: 3px; }
+  .incident-item .meta { color: var(--muted); font-size: 11px; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-right: 4px; margin-top: 4px; background: #2a313c; }
+  #graph-container { flex: 1; position: relative; }
+  #network { width: 100%; height: 100%; background: var(--bg); }
+  #detail-panel { position: absolute; top: 12px; right: 12px; width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 12px; display: none; max-height: calc(100% - 24px); overflow-y: auto; }
+  #detail-panel h3 { margin: 0 0 8px; font-size: 13px; }
+  #detail-panel dt { color: var(--muted); margin-top: 6px; font-size: 10px; text-transform: uppercase; }
+  #detail-panel dd { margin: 2px 0 0; word-break: break-word; }
+  #legend { position: absolute; bottom: 12px; left: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 11px; }
+  #legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+  #legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  #empty-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; padding: 40px; }
+  #toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  #stats { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>AI-Correlated Log Intelligence</h1>
+    <p>Interactive graph of one incident across every system it touched — solid edges are deterministic ID/timestamp matches, dashed edges are LLM-inferred.</p>
+  </div>
+  <div id="stats"></div>
+</header>
+
+<div class="layout">
+  <div id="sidebar">
+    <div class="section-title">Incidents</div>
+    <div id="incident-list"></div>
+  </div>
+  <div id="graph-container">
+    <div id="toolbar">
+      <button id="btn-all">Show full graph</button>
+      <button id="btn-fit">Fit view</button>
+    </div>
+    <div id="network"></div>
+    <div id="empty-state">No data yet. Run the pipeline (main.py) to extract, correlate, and store log events, then reload.</div>
+    <div id="legend">
+      <div class="row"><span class="dot" style="background:#FF9900"></span> CloudWatch</div>
+      <div class="row"><span class="dot" style="background:#F8DC75"></span> Tomcat</div>
+      <div class="row"><span class="dot" style="background:#4285F4"></span> GCP Logging</div>
+      <div class="row"><span class="dot" style="background:#F80000"></span> Oracle</div>
+      <div class="row"><span class="dot" style="background:#00758F"></span> MySQL</div>
+      <div class="row"><span class="dot" style="background:#336791"></span> Postgres</div>
+      <div class="row" style="margin-top:6px;">— solid = ID/timestamp match</div>
+      <div class="row">┄┄ dashed = LLM semantic match</div>
+    </div>
+    <div id="detail-panel"></div>
+  </div>
+</div>
+
+<script>
+let network = null;
+let currentIncidentId = null;
+
+const options = {
+  autoResize: true,
+  nodes: { shape: "dot", font: { color: "#e6edf3", size: 11, face: "monospace" } },
+  edges: { smooth: { type: "dynamic" }, font: { color: "#8b949e", size: 9, strokeWidth: 0 } },
+  physics: {
+    solver: "forceAtlas2Based",
+    forceAtlas2Based: { gravitationalConstant: -60, springLength: 120, springConstant: 0.06, avoidOverlap: 0.6 },
+    stabilization: { iterations: 150 }
+  },
+  interaction: { hover: true, tooltipDelay: 100 }
+};
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  return res.json();
+}
+
+function renderGraph(data) {
+  const container = document.getElementById("network");
+  const emptyState = document.getElementById("empty-state");
+  if (!data.nodes.length) {
+    emptyState.style.display = "flex";
+    container.style.display = "none";
+    return;
+  }
+  emptyState.style.display = "none";
+  container.style.display = "block";
+
+  const nodes = new vis.DataSet(data.nodes);
+  const edges = new vis.DataSet(data.edges);
+  network = new vis.Network(container, { nodes, edges }, options);
+
+  network.on("click", (params) => {
+    const panel = document.getElementById("detail-panel");
+    if (params.nodes.length) {
+      const node = nodes.get(params.nodes[0]);
+      const raw = node.raw;
+      const idPairs = Object.entries(raw.identifiers || {}).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+      panel.innerHTML = `
+        <h3>${raw.source_system} — ${raw.level}</h3>
+        <dl>
+          <dt>Timestamp</dt><dd>${raw.timestamp}</dd>
+          <dt>Origin</dt><dd>${raw.origin}</dd>
+          <dt>Host</dt><dd>${raw.host || "-"}</dd>
+          <dt>Message</dt><dd>${raw.message}</dd>
+          ${idPairs}
+        </dl>`;
+      panel.style.display = "block";
+    } else {
+      panel.style.display = "none";
+    }
+  });
+
+  document.getElementById("stats").textContent = `${data.nodes.length} events · ${data.edges.length} correlations`;
+}
+
+async function loadIncidents() {
+  const incidents = await fetchJSON("/api/incidents");
+  const list = document.getElementById("incident-list");
+  list.innerHTML = "";
+  incidents.forEach((inc) => {
+    const el = document.createElement("div");
+    el.className = "incident-item";
+    el.dataset.incidentId = inc.incident_id;
+    el.innerHTML = `
+      <div class="title">${inc.incident_id} (${inc.event_count} events)</div>
+      <div class="meta">${inc.start_time || ""} → ${inc.end_time || ""}</div>
+      <div>${inc.sources_involved.map(s => `<span class="badge">${s}</span>`).join("")}</div>`;
+    el.addEventListener("click", () => selectIncident(inc.incident_id));
+    list.appendChild(el);
+  });
+  return incidents;
+}
+
+async function selectIncident(incidentId) {
+  currentIncidentId = incidentId;
+  document.querySelectorAll(".incident-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.incidentId === incidentId);
+  });
+  const data = await fetchJSON(`/api/graph?incident_id=${encodeURIComponent(incidentId)}`);
+  renderGraph(data);
+}
+
+async function showFullGraph() {
+  currentIncidentId = null;
+  document.querySelectorAll(".incident-item").forEach(el => el.classList.remove("active"));
+  const data = await fetchJSON("/api/graph");
+  renderGraph(data);
+}
+
+document.getElementById("btn-all").addEventListener("click", showFullGraph);
+document.getElementById("btn-fit").addEventListener("click", () => network && network.fit());
+
+(async function init() {
+  const incidents = await loadIncidents();
+  if (incidents.length) {
+    await selectIncident(incidents[0].incident_id);
+  } else {
+    document.getElementById("empty-state").style.display = "flex";
+    document.getElementById("network").style.display = "none";
+  }
+})();
+</script>
+</body>
+</html>

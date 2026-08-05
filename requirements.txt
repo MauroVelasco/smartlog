@@ -1,0 +1,31 @@
+# --- Log Sources ---
+boto3>=1.34            # CloudWatch (primary extraction point)
+google-cloud-logging>=3.10  # optional, GCP Logging extractor
+
+# --- Ingestion & Normalization ---
+python-dateutil>=2.9
+python-dotenv>=1.0
+
+# --- LangChain Correlation Agents ---
+langchain>=0.3
+langchain-core>=0.3
+langchain-anthropic>=0.3
+langchain-openai>=0.2   # optional, only if LLM_PROVIDER=openai
+pydantic>=2.7
+
+# --- Relationship Store ---
+sqlalchemy>=2.0
+psycopg2-binary>=2.9   # also used by PostgresLogFileExtractor
+networkx>=3.3
+
+# --- DB log extractors (extraction/db_log_extractor.py), optional per engine ---
+oracledb>=2.0    # OracleAlertLogExtractor (pure-Python thin mode, no Instant Client needed)
+pymysql>=1.1     # MySQLErrorLogExtractor
+
+# --- Visualization UI ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+
+# --- Tests ---
+pytest>=8.0

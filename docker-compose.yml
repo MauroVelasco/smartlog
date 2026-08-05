@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: log_intelligence_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: log_intelligence
+    ports:
+      - "5432:5432"
+    volumes:
+      - log_intelligence_data:/var/lib/postgresql/data
+
+volumes:
+  log_intelligence_data:
