@@ -8,7 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebServlet(urlPatterns = "/health")
+@WebServlet(urlPatterns = {"/", "/health"})
 public class HealthServlet extends HttpServlet {
 
     @Override
