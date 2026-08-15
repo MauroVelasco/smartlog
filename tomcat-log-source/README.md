@@ -44,11 +44,25 @@ produce one on its own; tail the file instead: `tail -f logs/catalina.out`).
   logging.
 
 Every request generates and logs its own `request_id`, so each one is
-independently traceable through the pipeline. Order-related log lines also
-carry `trxId` (same value as `request_id`), `username`, and `componentId`
-(`orders-service`) — the field names used by the team's CloudWatch log
-generator — so the same transaction is findable under either source's
-vocabulary once both are correlated.
+independently traceable through the pipeline.
+
+### Parameterizable fields (cross-source correlation)
+
+`trxId`, `username`, `componentId`, `applicationName`, and `correlated` are
+all overridable via query params on `/api/orders*`, matching the field
+names used by the team's CloudWatch log generator:
+
+```
+GET /api/orders?trxId=<uuid>&username=hkim-819&componentId=shipping-service&applicationName=tomcat-log-source&correlated=true
+```
+
+Any field left out falls back to a random default (same as before). When
+`trxId` is supplied it becomes `request_id` in the log line too, and
+`username`/`componentId` are additionally logged as `user_id`/`service_name`
+— the exact keys `normalization/normalizer.py`'s regex already matches — so
+feeding the same `trxId` into both this app and the CloudWatch generator
+produces two events the deterministic correlator links automatically, no
+Python changes required.
 
 ## Deploying to EC2
 
