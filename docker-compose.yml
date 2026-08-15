@@ -15,6 +15,13 @@ services:
     image: tomcat:10.1-jdk17-corretto
     container_name: tomcat_app
     restart: unless-stopped
+    # The base image's default CMD ("catalina.sh run") does not produce a
+    # catalina.out file — it only writes date-rotated catalina.<date>.log
+    # and sends stdout to `docker logs`. Redirect explicitly so a real
+    # catalina.out exists for TOMCAT_LOG_PATHS to read. "$$" escapes the
+    # variable so compose passes it through literally instead of resolving
+    # it against the host environment.
+    command: ["/bin/sh", "-c", "exec catalina.sh run >> \"$$CATALINA_HOME/logs/catalina.out\" 2>&1"]
     ports:
       - "8080:8080"
     environment:
