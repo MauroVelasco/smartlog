@@ -20,20 +20,21 @@ public class OrderServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String requestId = RequestIds.next();
+        String username = Users.next();
         String pathInfo = req.getPathInfo() == null ? "" : req.getPathInfo();
 
         resp.setContentType("application/json");
 
         switch (pathInfo) {
             case "/error":
-                handleError(requestId, resp);
+                handleError(requestId, username, resp);
                 break;
             case "/db-error":
-                handleDbError(requestId, resp);
+                handleDbError(requestId, username, resp);
                 break;
             case "":
             case "/":
-                handleList(requestId, req, resp);
+                handleList(requestId, username, req, resp);
                 break;
             default:
                 resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -41,29 +42,30 @@ public class OrderServlet extends HttpServlet {
         }
     }
 
-    private void handleList(String requestId, HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    private void handleList(String requestId, String username, HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String sku = req.getParameter("sku");
         String orderId = sku != null
-                ? orderService.createOrder(requestId, sku)
-                : orderService.retrieveOrder(requestId, "ord-" + Integer.toHexString(requestId.hashCode() & 0xfff));
+                ? orderService.createOrder(requestId, username, sku)
+                : orderService.retrieveOrder(requestId, username, "ord-" + Integer.toHexString(requestId.hashCode() & 0xfff));
 
         resp.setStatus(HttpServletResponse.SC_OK);
         resp.getWriter().write("{\"request_id\":\"" + requestId + "\",\"order_id\":\"" + orderId + "\"}");
     }
 
-    private void handleError(String requestId, HttpServletResponse resp) throws IOException {
+    private void handleError(String requestId, String username, HttpServletResponse resp) throws IOException {
         try {
             orderService.lookupWithBrokenCatalog(requestId);
         } catch (NullPointerException e) {
-            LOGGER.log(Level.SEVERE, "request_id=" + requestId + " " + e.getClass().getSimpleName(), e);
+            LOGGER.log(Level.SEVERE, "request_id=" + requestId + " " + e.getClass().getSimpleName()
+                    + " trxId=" + requestId + " username=" + username + " componentId=" + OrderService.COMPONENT_ID, e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             resp.getWriter().write("{\"request_id\":\"" + requestId + "\",\"error\":\"internal error\"}");
         }
     }
 
-    private void handleDbError(String requestId, HttpServletResponse resp) throws IOException {
+    private void handleDbError(String requestId, String username, HttpServletResponse resp) throws IOException {
         String orderId = "ord-" + Integer.toHexString(requestId.hashCode() & 0xfff);
-        orderService.reportDbFailure(requestId, orderId);
+        orderService.reportDbFailure(requestId, username, orderId);
         resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         resp.getWriter().write("{\"request_id\":\"" + requestId + "\",\"error\":\"db unavailable\"}");
     }

@@ -7,14 +7,20 @@ class OrderService {
 
     private static final Logger LOGGER = Logger.getLogger(OrderService.class.getName());
 
-    String retrieveOrder(String requestId, String orderId) {
-        LOGGER.info("request_id=" + requestId + " order retrieved order_id=" + orderId);
+    // trxId mirrors request_id under the CloudWatch source's field naming, so
+    // the same identifier is findable under either source's vocabulary.
+    static final String COMPONENT_ID = "orders-service";
+
+    String retrieveOrder(String requestId, String username, String orderId) {
+        LOGGER.info("request_id=" + requestId + " order retrieved order_id=" + orderId
+                + tail(requestId, username));
         return orderId;
     }
 
-    String createOrder(String requestId, String sku) {
+    String createOrder(String requestId, String username, String sku) {
         String orderId = "ord-" + Integer.toHexString(sku.hashCode() & 0xffffff);
-        LOGGER.info("request_id=" + requestId + " order created order_id=" + orderId + " sku=" + sku);
+        LOGGER.info("request_id=" + requestId + " order created order_id=" + orderId + " sku=" + sku
+                + tail(requestId, username));
         return orderId;
     }
 
@@ -29,10 +35,15 @@ class OrderService {
         return null;
     }
 
-    void reportDbFailure(String requestId, String orderId) {
+    void reportDbFailure(String requestId, String username, String orderId) {
         LOGGER.log(Level.SEVERE, "request_id=" + requestId
                 + " DB connection failed for order lookup order_id=" + orderId
-                + " error_code=DB_TIMEOUT");
+                + " error_code=DB_TIMEOUT"
+                + tail(requestId, username));
+    }
+
+    private static String tail(String requestId, String username) {
+        return " trxId=" + requestId + " username=" + username + " componentId=" + COMPONENT_ID;
     }
 
     private static final class OrderCatalogEntry {

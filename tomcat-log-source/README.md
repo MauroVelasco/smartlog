@@ -44,7 +44,11 @@ produce one on its own; tail the file instead: `tail -f logs/catalina.out`).
   logging.
 
 Every request generates and logs its own `request_id`, so each one is
-independently traceable through the pipeline.
+independently traceable through the pipeline. Order-related log lines also
+carry `trxId` (same value as `request_id`), `username`, and `componentId`
+(`orders-service`) — the field names used by the team's CloudWatch log
+generator — so the same transaction is findable under either source's
+vocabulary once both are correlated.
 
 ## Deploying to EC2
 
