@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16
@@ -12,6 +10,27 @@ services:
       - "5432:5432"
     volumes:
       - log_intelligence_data:/var/lib/postgresql/data
+
+  tomcat:
+    image: tomcat:10.1-jdk17-corretto
+    container_name: tomcat_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - JPDA_ADDRESS=*:8000
+      - JPDA_TRANSPORT=dt_socket
+      - CATALINA_OPTS=-Xms512m -Xmx1024m
+    volumes:
+      # Mount webapps directory to persist deployed WAR files
+      - ./webapps:/usr/local/tomcat/webapps
+      # Mount logs directory to access Tomcat logs on host
+      - ./logs:/usr/local/tomcat/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   log_intelligence_data:
