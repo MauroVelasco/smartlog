@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .env
 .pytest_cache/
+.atl/.skill-registry.cache.json
+.DS_Store
+.vscode/settings.json
+.atl/skill-registry.md
+*.pdf
+*.png
+valid LLM providers.txt
