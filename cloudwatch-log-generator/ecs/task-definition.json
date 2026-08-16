@@ -1,0 +1,76 @@
+{
+  "family": "cloudwatch-log-generator",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/cloudwatchLogGeneratorTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "cloudwatch-log-generator",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/cloudwatch-log-generator:<IMAGE_TAG>",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/q/health/live || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "environment": [
+        {
+          "name": "generateCorrelatedLogs",
+          "value": "true"
+        },
+        {
+          "name": "trxId",
+          "value": "a1b2c3d4-e5f6-4711-9abc-1234567890ab"
+        },
+        {
+          "name": "username",
+          "value": "svc-account-001"
+        },
+        {
+          "name": "componentId",
+          "value": "order-service"
+        },
+        {
+          "name": "LOG_GENERATOR_INTERVAL",
+          "value": "5s"
+        },
+        {
+          "name": "LOG_GENERATOR_BATCH_SIZE",
+          "value": "1"
+        },
+        {
+          "name": "LOG_GENERATOR_APPLICATION_NAME",
+          "value": "order-service-log-generator"
+        },
+        {
+          "name": "LOG_GENERATOR_EMIT_CORRELATION_ALIASES",
+          "value": "true"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cloudwatch-log-generator",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
