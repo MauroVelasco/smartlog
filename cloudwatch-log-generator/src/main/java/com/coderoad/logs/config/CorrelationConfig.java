@@ -8,6 +8,7 @@ import com.coderoad.logs.generator.RandomLogValues;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 /**
  * Resolves trxId/username/componentId according to the
@@ -36,6 +37,8 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @ApplicationScoped
 public class CorrelationConfig {
 
+    private static final Logger LOG = Logger.getLogger(CorrelationConfig.class);
+
     @ConfigProperty(name = "generateCorrelatedLogs", defaultValue = "false")
     boolean generateCorrelatedLogs;
 
@@ -53,6 +56,7 @@ public class CorrelationConfig {
     private final AtomicReference<String> fallbackComponentId = new AtomicReference<>();
 
     public boolean isCorrelatedMode() {
+        LOG.infof("Correlated mode: %s", generateCorrelatedLogs);
         return generateCorrelatedLogs;
     }
 
