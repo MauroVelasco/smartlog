@@ -1,0 +1,51 @@
+####
+# This Dockerfile builds a container that runs cloudwatch-log-generator in
+# JVM mode, using the standard Quarkus fast-jar layout on a UBI9 OpenJDK 21
+# base image.
+#
+# Before building the image, package the app:
+#
+#   ./mvnw package
+#
+# Then build the image. IMPORTANT: the ECS task definitions in this repo
+# target LINUX_X86_64 (the Fargate default - see ecs/task-definition*.json).
+# If you build on an Apple Silicon Mac or any other arm64 machine, a plain
+# `docker build` produces an arm64 image, which fails on Fargate with
+# "exec format error" and an immediate essential-container-exited crash.
+# Always pin the platform explicitly:
+#
+#   docker buildx build --platform linux/amd64 \
+#     -f src/main/docker/Dockerfile.jvm \
+#     -t cloudwatch-log-generator:latest .
+#
+# And run it locally:
+#
+#   docker run -i --rm -p 8080:8080 \
+#     -e generateCorrelatedLogs=false \
+#     cloudwatch-log-generator:latest
+#
+# In ECS, all the app's environment variables (generateCorrelatedLogs, trxId,
+# username, componentId, LOG_GENERATOR_*) are set in the task definition, not
+# baked into this image - see ecs/task-definition.json.
+####
+FROM registry.access.redhat.com/ubi9/openjdk-21:1.20
+
+ENV LANGUAGE='en_US:en'
+
+# Four distinct layers so an application-only change doesn't invalidate the
+# (much larger, much less frequently changing) dependency layer.
+COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
+COPY --chown=185 target/quarkus-app/*.jar /deployments/
+COPY --chown=185 target/quarkus-app/app/ /deployments/app/
+COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
+
+EXPOSE 8080
+USER 185
+
+ENV JAVA_OPTS_APPEND="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_APP_JAR="/deployments/quarkus-run.jar"
+
+ENTRYPOINT [ "/opt/jboss/container/java/run/run-java.sh" ]
+
+
+
