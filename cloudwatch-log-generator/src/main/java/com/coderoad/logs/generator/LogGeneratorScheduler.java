@@ -54,8 +54,9 @@ public class LogGeneratorScheduler {
         String baseMessage = RandomLogValues.randomMessage(level);
         String errorCode = isWarnOrError(level) ? RandomLogValues.randomErrorCode() : null;
 
+        boolean identifierFree = correlationConfig.isIdentifierFree();
         String message = LogEventComposer.compose(
-                baseMessage, trxId, username, componentId, errorCode, emitCorrelationAliases);
+                baseMessage, trxId, username, componentId, errorCode, emitCorrelationAliases, identifierFree);
 
         // MDC fields are rendered by quarkus-logging-json under the "mdc" key
         // of every JSON log record, giving trxId/username/componentId as

@@ -1,0 +1,65 @@
+{
+  "case_id": "t2-constraint-violation-vs-validation",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Postgres unique-constraint violation vs Tomcat validation rejection, no shared identifier",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-constraint-violation",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "duplicate key value violates unique constraint \"orders_sku_idx\"",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "duplicate key value violates unique constraint"
+      }
+    },
+    {
+      "id": "tomcat-validation-rejected",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "validation-rejected",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "duplicate SKU entry violates uniqueness constraint"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-constraint-violation",
+        "to": "tomcat-validation-rejected",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-constraint-violation",
+          "tomcat-validation-rejected"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

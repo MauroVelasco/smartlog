@@ -1,0 +1,471 @@
+{
+  "case_id": "doc-batch-split-unlinkable",
+  "tier": "doc",
+  "outcome_class": "documented-limitation",
+  "title": "A real causal pair straddling the 25-event SEMANTIC_MAX_BATCH_SIZE chunk boundary is never sent to the LLM together and cannot link (fixed-size non-overlapping chunking blind spot)",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "none",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-filler-1",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "autovacuum: analyzing table sessions_cache for routine maintenance",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "autovacuum: analyzing table sessions_cache for routine maintenance"
+      }
+    },
+    {
+      "id": "pg-filler-2",
+      "source": "postgres",
+      "wait_ms_before": 120,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "checkpoint completed within target window",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "checkpoint completed within target window"
+      }
+    },
+    {
+      "id": "pg-filler-3",
+      "source": "postgres",
+      "wait_ms_before": 240,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "replication lag within normal bounds on standby node one",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "replication lag within normal bounds on standby node one"
+      }
+    },
+    {
+      "id": "pg-filler-4",
+      "source": "postgres",
+      "wait_ms_before": 360,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "read replica sync completed successfully for shard two",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "read replica sync completed successfully for shard two"
+      }
+    },
+    {
+      "id": "pg-filler-5",
+      "source": "postgres",
+      "wait_ms_before": 480,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "temporary file usage within limits for reporting query",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "temporary file usage within limits for reporting query"
+      }
+    },
+    {
+      "id": "pg-filler-6",
+      "source": "postgres",
+      "wait_ms_before": 600,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "statistics collector updated table statistics for orders_summary",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "statistics collector updated table statistics for orders_summary"
+      }
+    },
+    {
+      "id": "pg-filler-7",
+      "source": "postgres",
+      "wait_ms_before": 720,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "background writer completed routine flush cycle at low watermark",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "background writer completed routine flush cycle at low watermark"
+      }
+    },
+    {
+      "id": "pg-filler-8",
+      "source": "postgres",
+      "wait_ms_before": 840,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "archiver process completed WAL segment archiving for segment 42",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "archiver process completed WAL segment archiving for segment 42"
+      }
+    },
+    {
+      "id": "pg-filler-9",
+      "source": "postgres",
+      "wait_ms_before": 960,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "routine index maintenance completed on catalog_items table",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "routine index maintenance completed on catalog_items table"
+      }
+    },
+    {
+      "id": "pg-filler-10",
+      "source": "postgres",
+      "wait_ms_before": 1080,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "connection pool health check passed for pool alpha",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "connection pool health check passed for pool alpha"
+      }
+    },
+    {
+      "id": "pg-filler-11",
+      "source": "postgres",
+      "wait_ms_before": 1200,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "logical replication slot advanced normally for subscriber beta",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "logical replication slot advanced normally for subscriber beta"
+      }
+    },
+    {
+      "id": "pg-filler-12",
+      "source": "postgres",
+      "wait_ms_before": 1320,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "routine backup snapshot completed successfully overnight",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "routine backup snapshot completed successfully overnight"
+      }
+    },
+    {
+      "id": "pg-filler-13",
+      "source": "postgres",
+      "wait_ms_before": 1440,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "vacuum freeze completed for table orders_archive_2025",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "vacuum freeze completed for table orders_archive_2025"
+      }
+    },
+    {
+      "id": "pg-filler-14",
+      "source": "postgres",
+      "wait_ms_before": 1560,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "planner statistics refreshed for query optimizer cache",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "planner statistics refreshed for query optimizer cache"
+      }
+    },
+    {
+      "id": "pg-filler-15",
+      "source": "postgres",
+      "wait_ms_before": 1680,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "routine WAL checkpoint triggered by time threshold",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "routine WAL checkpoint triggered by time threshold"
+      }
+    },
+    {
+      "id": "pg-filler-16",
+      "source": "postgres",
+      "wait_ms_before": 1800,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "connection pool health check passed for pool gamma",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "connection pool health check passed for pool gamma"
+      }
+    },
+    {
+      "id": "pg-filler-17",
+      "source": "postgres",
+      "wait_ms_before": 1920,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "background analyze completed for table shipment_events",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "background analyze completed for table shipment_events"
+      }
+    },
+    {
+      "id": "tomcat-filler-1",
+      "source": "tomcat",
+      "wait_ms_before": 2040,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "pessimistic-lock",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "PessimisticLockException"
+      }
+    },
+    {
+      "id": "tomcat-filler-2",
+      "source": "tomcat",
+      "wait_ms_before": 2160,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "order-persist-failure",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "OrderPersistException"
+      }
+    },
+    {
+      "id": "tomcat-filler-3",
+      "source": "tomcat",
+      "wait_ms_before": 2280,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "gateway-read-timeout",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "SocketTimeoutException"
+      }
+    },
+    {
+      "id": "tomcat-filler-4",
+      "source": "tomcat",
+      "wait_ms_before": 2400,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "validation-rejected",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "OrderValidationException"
+      }
+    },
+    {
+      "id": "tomcat-filler-5",
+      "source": "tomcat",
+      "wait_ms_before": 2520,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "connection-reset",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "connection reset by peer"
+      }
+    },
+    {
+      "id": "tomcat-filler-6",
+      "source": "tomcat",
+      "wait_ms_before": 2640,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "cache-warmed",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "cache warmed successfully"
+      }
+    },
+    {
+      "id": "tomcat-filler-7",
+      "source": "tomcat",
+      "wait_ms_before": 2760,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "inventory-checked",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "inventory check completed"
+      }
+    },
+    {
+      "id": "pg-real-pool-exhausted",
+      "source": "postgres",
+      "wait_ms_before": 2880,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "remaining connection slots reserved for non-replication superuser connections",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "remaining connection slots reserved"
+      }
+    },
+    {
+      "id": "tomcat-real-pool-timeout",
+      "source": "tomcat",
+      "wait_ms_before": 3000,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "pool-checkout-timeout",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "checkout timed out after 30000ms"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [],
+    "forbidden_edges": [
+      {
+        "from": "pg-real-pool-exhausted",
+        "to": "tomcat-real-pool-timeout",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.0
+      }
+    ],
+    "incidents": [
+      {
+        "members": [
+          "pg-real-pool-exhausted"
+        ],
+        "grouped": false
+      },
+      {
+        "members": [
+          "tomcat-real-pool-timeout"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}
