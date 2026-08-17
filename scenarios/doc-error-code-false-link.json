@@ -1,0 +1,65 @@
+{
+  "case_id": "doc-error-code-false-link",
+  "tier": "doc",
+  "outcome_class": "documented-limitation",
+  "title": "Shared error_code=DB_TIMEOUT links two narratively-unrelated events at confidence 1.0 (accepted precision tradeoff, not a bug)",
+  "identifier_free": false,
+  "gated_by_phase3": false,
+  "expected_stage": "deterministic",
+  "use_llm": false,
+  "steps": [
+    {
+      "id": "pg-unrelated-maintenance",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "scheduled vacuum maintenance window started for orders_history partition",
+          "p_error_code": "DB_TIMEOUT",
+          "p_identifier_free": false
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "scheduled vacuum maintenance window started"
+      }
+    },
+    {
+      "id": "tomcat-db-error",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/db-error",
+        "query": {
+          "identifierFree": "false"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "DB connection failed for order lookup"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-unrelated-maintenance",
+        "to": "tomcat-db-error",
+        "relation_type": "id_match",
+        "min_confidence": 1.0
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-unrelated-maintenance",
+          "tomcat-db-error"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

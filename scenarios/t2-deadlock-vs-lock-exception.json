@@ -1,0 +1,65 @@
+{
+  "case_id": "t2-deadlock-vs-lock-exception",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "SQL deadlock vocabulary vs Java lock-exception vocabulary, no shared identifier",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-deadlock",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "deadlock detected; process 4210 waits for ShareLock on transaction 8891 while updating relation orders_line; canceling statement",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "deadlock detected; process 4210 waits for ShareLock"
+      }
+    },
+    {
+      "id": "tomcat-lock-exception",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "pessimistic-lock",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "PessimisticLockException: could not execute batch for order line update"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-deadlock",
+        "to": "tomcat-lock-exception",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-deadlock",
+          "tomcat-lock-exception"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "case_id": "t2-disk-full-vs-write-failure",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Postgres disk-full error vs Tomcat order-persist failure, no shared identifier",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-disk-full",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "could not extend file base/16384/16401: No space left on device",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "could not extend file base/16384/16401: No space left on device"
+      }
+    },
+    {
+      "id": "tomcat-persist-failure",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "order-persist-failure",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "no space left on target volume"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-disk-full",
+        "to": "tomcat-persist-failure",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-disk-full",
+          "tomcat-persist-failure"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

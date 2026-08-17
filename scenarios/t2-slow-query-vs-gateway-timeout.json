@@ -1,0 +1,65 @@
+{
+  "case_id": "t2-slow-query-vs-gateway-timeout",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Postgres long-running statement vs Tomcat upstream gateway read timeout, no shared identifier",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-slow-query",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "long-running statement detected: UPDATE orders SET status = 'processing' exceeded 30000ms execution threshold",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "long-running statement detected"
+      }
+    },
+    {
+      "id": "tomcat-gateway-timeout",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "gateway-read-timeout",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "read timed out while waiting for downstream order-pricing service"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-slow-query",
+        "to": "tomcat-gateway-timeout",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-slow-query",
+          "tomcat-gateway-timeout"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "case_id": "t2-negative-unrelated",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Precision guard: two genuinely unrelated events in one bucket must NOT link",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "none",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-routine-maintenance",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "autovacuum: analyzing table orders_archive for routine maintenance",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "autovacuum: analyzing table orders_archive"
+      }
+    },
+    {
+      "id": "tomcat-cache-warmed",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "cache-warmed",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "order pricing cache warmed successfully"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [],
+    "forbidden_edges": [
+      {
+        "from": "pg-routine-maintenance",
+        "to": "tomcat-cache-warmed",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.0
+      }
+    ],
+    "incidents": [
+      {
+        "members": [
+          "pg-routine-maintenance"
+        ],
+        "grouped": false
+      },
+      {
+        "members": [
+          "tomcat-cache-warmed"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}
