@@ -31,6 +31,9 @@ public class OrderServlet extends HttpServlet {
             case "/db-error":
                 handleDbError(ctx, resp);
                 break;
+            case "/scenario":
+                handleScenario(ctx, req, resp);
+                break;
             case "":
             case "/":
                 handleList(ctx, req, resp);
@@ -55,7 +58,7 @@ public class OrderServlet extends HttpServlet {
         try {
             orderService.lookupWithBrokenCatalog(ctx.trxId());
         } catch (NullPointerException e) {
-            LOGGER.log(Level.SEVERE, "request_id=" + ctx.trxId() + " " + e.getClass().getSimpleName()
+            LOGGER.log(Level.SEVERE, OrderService.head(ctx) + e.getClass().getSimpleName()
                     + OrderService.tail(ctx), e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             resp.getWriter().write("{\"request_id\":\"" + ctx.trxId() + "\",\"error\":\"internal error\"}");
@@ -67,5 +70,24 @@ public class OrderServlet extends HttpServlet {
         orderService.reportDbFailure(ctx, orderId);
         resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         resp.getWriter().write("{\"request_id\":\"" + ctx.trxId() + "\",\"error\":\"db unavailable\"}");
+    }
+
+    // Tier 2 (identifier-free, narrative-only) scenario cases need more
+    // vocabulary than /error and /db-error provide. Dispatches to a small,
+    // bounded, Java-authored catalog (ScenarioNarratives) rather than
+    // accepting free text — see that class's header comment for why.
+    private void handleScenario(RequestContext ctx, HttpServletRequest req, HttpServletResponse resp)
+            throws IOException {
+        String name = req.getParameter("name");
+        ScenarioNarratives.Entry entry = name == null ? null : ScenarioNarratives.lookup(name);
+        if (entry == null) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            resp.getWriter().write("{\"error\":\"unknown scenario name\"}");
+            return;
+        }
+        LOGGER.log(entry.level(), OrderService.head(ctx) + entry.message() + OrderService.tail(ctx));
+        resp.setStatus(HttpServletResponse.SC_OK);
+        String requestIdField = ctx.identifierFree() ? "null" : "\"" + ctx.trxId() + "\"";
+        resp.getWriter().write("{\"request_id\":" + requestIdField + ",\"scenario\":\"" + name + "\"}");
     }
 }

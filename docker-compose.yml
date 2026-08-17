@@ -6,6 +6,26 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: log_intelligence
+      TZ: UTC
+    # Logging flags for the scenario harness (postgres-scenario-harness):
+    # logging_collector writes a readable server logfile (pg_current_logfile()),
+    # log_line_prefix gives PostgresLogFileExtractor's _PG_ENTRY_START a
+    # parseable "%m [%p] " prefix, log_min_messages=info surfaces RAISE
+    # INFO/NOTICE, and terse/panic suppress the CONTEXT:/STATEMENT: phantom
+    # log lines that harness.emit_log()'s caught RAISE EXCEPTION would
+    # otherwise also write (see design Decision on emit_log gotchas).
+    command:
+      - postgres
+      - -c
+      - logging_collector=on
+      - -c
+      - "log_line_prefix=%m [%p] "
+      - -c
+      - log_min_messages=info
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
     ports:
       - "5432:5432"
     volumes:
@@ -27,7 +47,13 @@ services:
     environment:
       - JPDA_ADDRESS=*:8000
       - JPDA_TRANSPORT=dt_socket
-      - CATALINA_OPTS=-Xms512m -Xmx1024m
+      # -Duser.timezone=UTC + TZ=UTC keep Tomcat's juli timestamps (which
+      # carry no explicit offset, per _normalize_tomcat's assumption)
+      # aligned with Postgres's %m-prefixed, real-offset timestamps — a
+      # clock skew here would silently corrupt the 300s/120s correlation
+      # windows across sources (postgres-scenario-harness design).
+      - CATALINA_OPTS=-Xms512m -Xmx1024m -Duser.timezone=UTC
+      - TZ=UTC
     volumes:
       # Mount webapps directory to persist deployed WAR files
       - ./webapps:/usr/local/tomcat/webapps
