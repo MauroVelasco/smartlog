@@ -22,4 +22,9 @@ class CorrelationConfigRandomModeTest {
         assertFalse(config.isCorrelatedMode());
         assertNotEquals(config.trxId(), config.trxId());
     }
+
+    @Test
+    void isIdentifierFreeDefaultsToFalse() {
+        assertFalse(config.isIdentifierFree());
+    }
 }

@@ -12,3 +12,4 @@ __pycache__/
 valid LLM providers.txt
 logs/*
 webapps/*
+/.claude

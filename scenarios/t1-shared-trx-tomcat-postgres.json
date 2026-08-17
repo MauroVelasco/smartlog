@@ -1,0 +1,72 @@
+{
+  "case_id": "t1-shared-trx-tomcat-postgres",
+  "tier": 1,
+  "outcome_class": "positive-control",
+  "title": "Shared trxId links Tomcat and Postgres deterministically",
+  "identifier_free": false,
+  "gated_by_phase3": false,
+  "expected_stage": "deterministic",
+  "use_llm": false,
+  "steps": [
+    {
+      "id": "tomcat-db-error",
+      "source": "tomcat",
+      "wait_ms_before": 0,
+      "http": {
+        "path": "/api/orders/db-error",
+        "query": {
+          "trxId": "harness-t1-0001",
+          "username": "harness-user-01",
+          "componentId": "orders-service",
+          "correlated": "true",
+          "identifierFree": "false"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "DB connection failed for order lookup"
+      }
+    },
+    {
+      "id": "pg-conn-refused",
+      "source": "postgres",
+      "wait_ms_before": 300,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "connection to server refused for database orders_app",
+          "p_trx_id": "harness-t1-0001",
+          "p_username": "harness-user-01",
+          "p_component_id": "orders-service",
+          "p_error_code": null,
+          "p_identifier_free": false
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "connection to server refused for database orders_app"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "tomcat-db-error",
+        "to": "pg-conn-refused",
+        "relation_type": "id_match",
+        "min_confidence": 1.0
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "tomcat-db-error",
+          "pg-conn-refused"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

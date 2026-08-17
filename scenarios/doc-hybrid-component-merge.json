@@ -1,0 +1,94 @@
+{
+  "case_id": "doc-hybrid-component-merge",
+  "tier": "doc",
+  "outcome_class": "documented-limitation",
+  "title": "A deterministic edge removes one member of a would-be semantic pair from the unlinked pool, changing the resulting incident grouping (KF-3: not a naive sum of independent deterministic + semantic results)",
+  "identifier_free": false,
+  "gated_by_phase3": true,
+  "expected_stage": "mixed",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-db-timeout",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "statement canceled due to lock timeout while committing order transaction",
+          "p_error_code": "DB_TIMEOUT",
+          "p_identifier_free": false
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "statement canceled due to lock timeout"
+      }
+    },
+    {
+      "id": "tomcat-db-error",
+      "source": "tomcat",
+      "wait_ms_before": 500,
+      "http": {
+        "path": "/api/orders/db-error",
+        "query": {
+          "identifierFree": "false"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "DB connection failed for order lookup"
+      }
+    },
+    {
+      "id": "tomcat-would-be-semantic-partner",
+      "source": "tomcat",
+      "wait_ms_before": 900,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "gateway-read-timeout",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "read timed out while waiting for downstream order-pricing service"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-db-timeout",
+        "to": "tomcat-db-error",
+        "relation_type": "id_match",
+        "min_confidence": 1.0
+      }
+    ],
+    "forbidden_edges": [
+      {
+        "from": "pg-db-timeout",
+        "to": "tomcat-would-be-semantic-partner",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.0
+      }
+    ],
+    "incidents": [
+      {
+        "members": [
+          "pg-db-timeout",
+          "tomcat-db-error"
+        ],
+        "grouped": true
+      },
+      {
+        "members": [
+          "tomcat-would-be-semantic-partner"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "case_id": "t2-restart-vs-connection-reset",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Postgres crash-recovery restart narrative vs Tomcat connection reset, no shared identifier",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-restart-recovery",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "database system was interrupted, entering crash recovery, resuming WAL replay",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "database system was interrupted, entering crash recovery"
+      }
+    },
+    {
+      "id": "tomcat-connection-reset",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "connection-reset",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "connection reset by peer while flushing order confirmation"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-restart-recovery",
+        "to": "tomcat-connection-reset",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-restart-recovery",
+          "tomcat-connection-reset"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

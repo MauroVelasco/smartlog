@@ -154,11 +154,24 @@ def _normalize_mysql(record: RawLogRecord) -> LogEvent:
 def _normalize_postgres(record: RawLogRecord) -> LogEvent:
     payload = record.raw_payload
     message = payload.get("message", "")
+    # Postgres server-log severities (DEBUG1-5/LOG/INFO/NOTICE/WARNING/ERROR/
+    # FATAL/PANIC) are a different vocabulary from the TRACE..FATAL scale the
+    # other sources use — fold onto the same scale, exactly as MySQL's PRIO
+    # values are folded above, so WARNING doesn't diverge from CloudWatch WARN.
+    prio_map = {
+        "DEBUG5": "DEBUG", "DEBUG4": "DEBUG", "DEBUG3": "DEBUG",
+        "DEBUG2": "DEBUG", "DEBUG1": "DEBUG",
+        "LOG": "INFO", "INFO": "INFO", "NOTICE": "INFO",
+        "WARNING": "WARN", "ERROR": "ERROR",
+        "FATAL": "FATAL", "PANIC": "FATAL",
+    }
+    prio = (payload.get("level") or "").upper()
+    level = prio_map.get(prio, extract_level(message))
     return LogEvent(
         source_system=SourceSystem.POSTGRES,
         origin=record.origin,
         timestamp=_parse_ts_or_now(payload.get("timestamp")),
-        level=payload.get("level") or extract_level(message),
+        level=level,
         message=message,
         identifiers=extract_identifiers(message),
         host=f"pid:{payload['pid']}" if payload.get("pid") else None,

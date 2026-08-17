@@ -1,0 +1,65 @@
+{
+  "case_id": "t2-pool-exhaustion",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Postgres connection-slot exhaustion vs Tomcat pool checkout timeout, no shared identifier",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-pool-exhausted",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "ERROR",
+          "p_message": "remaining connection slots reserved for non-replication superuser connections",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "remaining connection slots reserved"
+      }
+    },
+    {
+      "id": "tomcat-pool-timeout",
+      "source": "tomcat",
+      "wait_ms_before": 800,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "pool-checkout-timeout",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "checkout timed out after 30000ms"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-pool-exhausted",
+        "to": "tomcat-pool-timeout",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-pool-exhausted",
+          "tomcat-pool-timeout"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

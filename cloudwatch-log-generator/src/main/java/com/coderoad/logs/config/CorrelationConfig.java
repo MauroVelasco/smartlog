@@ -42,6 +42,13 @@ public class CorrelationConfig {
     @ConfigProperty(name = "generateCorrelatedLogs", defaultValue = "false")
     boolean generateCorrelatedLogs;
 
+    // postgres-scenario-harness: same exact-name env convention as
+    // generateCorrelatedLogs above (read once at startup, not per-event —
+    // this app has no per-request scope to key it off, unlike Tomcat's
+    // query-param toggle).
+    @ConfigProperty(name = "identifierFree", defaultValue = "false")
+    boolean identifierFree;
+
     @ConfigProperty(name = "trxId")
     Optional<String> configuredTrxId;
 
@@ -58,6 +65,10 @@ public class CorrelationConfig {
     public boolean isCorrelatedMode() {
         LOG.infof("Correlated mode: %s", generateCorrelatedLogs);
         return generateCorrelatedLogs;
+    }
+
+    public boolean isIdentifierFree() {
+        return identifierFree;
     }
 
     public String trxId() {

@@ -1,0 +1,89 @@
+{
+  "case_id": "t2-three-hop-chain",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Transitive A-B-C chain: Postgres stale-count trigger -> Tomcat inventory check -> Postgres recount confirmation",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "semantic",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-stale-count",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "inventory reservation query returned stale row counts, triggering manual recount",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "inventory reservation query returned stale row counts"
+      }
+    },
+    {
+      "id": "tomcat-inventory-checked",
+      "source": "tomcat",
+      "wait_ms_before": 600,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "inventory-checked",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "inventory check completed for order batch"
+      }
+    },
+    {
+      "id": "pg-recount-confirmed",
+      "source": "postgres",
+      "wait_ms_before": 1200,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "INFO",
+          "p_message": "inventory recount confirmed matching stock levels, releasing reservation lock",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "inventory recount confirmed matching stock levels"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [
+      {
+        "from": "pg-stale-count",
+        "to": "tomcat-inventory-checked",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      },
+      {
+        "from": "tomcat-inventory-checked",
+        "to": "pg-recount-confirmed",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.55
+      }
+    ],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-stale-count",
+          "tomcat-inventory-checked",
+          "pg-recount-confirmed"
+        ],
+        "grouped": true
+      }
+    ]
+  }
+}

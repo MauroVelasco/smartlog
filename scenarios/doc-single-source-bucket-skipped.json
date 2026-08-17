@@ -1,0 +1,64 @@
+{
+  "case_id": "doc-single-source-bucket-skipped",
+  "tier": "doc",
+  "outcome_class": "documented-limitation",
+  "title": "A bucket containing only one source system is never sent to the LLM, even if narratively causal (langchain_agents.py:135 scope limit)",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "none",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "pg-replication-lag",
+      "source": "postgres",
+      "wait_ms_before": 0,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "replication lag exceeded threshold on standby node",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "replication lag exceeded threshold"
+      }
+    },
+    {
+      "id": "pg-read-redirected",
+      "source": "postgres",
+      "wait_ms_before": 500,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "read query redirected to standby due to primary saturation",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "read query redirected to standby"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [],
+    "forbidden_edges": [],
+    "incidents": [
+      {
+        "members": [
+          "pg-replication-lag"
+        ],
+        "grouped": false
+      },
+      {
+        "members": [
+          "pg-read-redirected"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}

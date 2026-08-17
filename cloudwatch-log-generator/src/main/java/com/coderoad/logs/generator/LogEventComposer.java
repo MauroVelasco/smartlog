@@ -25,7 +25,17 @@ public final class LogEventComposer {
                                   String username,
                                   String componentId,
                                   String errorCode,
-                                  boolean emitCorrelationAliases) {
+                                  boolean emitCorrelationAliases,
+                                  boolean identifierFree) {
+        // identifierFree (postgres-scenario-harness): only the human
+        // narrative remains — no trxId/username/componentId, no errorCode=
+        // (case-insensitive regex match, so lower-casing it would not be
+        // enough), and it forces the alias block off regardless of what
+        // emitCorrelationAliases requested.
+        if (identifierFree) {
+            return baseMessage;
+        }
+
         StringBuilder message = new StringBuilder(baseMessage)
                 .append(" | trxId=").append(trxId)
                 .append(" username=").append(username)
