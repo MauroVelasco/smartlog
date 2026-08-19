@@ -129,3 +129,8 @@ class ScenarioCase(BaseModel):
     use_llm: bool
     steps: List[Step]
     expected: Expected
+    # Opt-in scoring relaxation for transitive-chain-shaped cases (see
+    # harness/scoring.py's score()). "exact" (the default, omitting this
+    # field entirely) is the historical exact-set-difference behavior,
+    # unchanged for every case that doesn't explicitly set this.
+    edge_scoring: Literal["exact", "incident_only"] = "exact"

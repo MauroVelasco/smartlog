@@ -73,7 +73,18 @@ def score(
     edges: List[CorrelationEdge],
     anchors: Dict[str, LogEvent],
     expected: Expected,
+    edge_scoring: str = "exact",
 ) -> ScoreResult:
+    """`edge_scoring` is an opt-in per-scenario relaxation (default "exact",
+    the historical exact-set-difference behavior, unchanged for every case
+    that doesn't set it). "incident_only" is for transitive-chain-shaped
+    cases: an edge between two anchors that are BOTH already correctly
+    members of the same expected `grouped: true` incident isn't counted as
+    a false positive just because it's not one of the minimal spanning
+    `expected.edges` — it's still a real edge between correctly-grouped
+    members, not a wrong link. `forbidden_edges` is unaffected either way:
+    a pair explicitly asserted as "must not link" still counts as a false
+    positive under "incident_only" too."""
     event_id_to_step_id = {event.event_id: step_id for step_id, event in anchors.items()}
     anchor_event_ids = set(event_id_to_step_id)
 
@@ -102,11 +113,34 @@ def score(
     observed_pairs = set(observed_relation_by_pair)
 
     true_positive_pairs = expected_pairs & observed_pairs
-    false_positive_pairs = observed_pairs - expected_pairs
     false_negative_pairs = expected_pairs - observed_pairs
 
     forbidden_pairs = {_pair_key(e.from_step, e.to_step) for e in expected.forbidden_edges}
     forbidden_edges_observed = sorted(forbidden_pairs & observed_pairs)
+
+    extra_pairs = observed_pairs - expected_pairs
+    if edge_scoring == "incident_only":
+        # Members of the same expected grouped=True incident are allowed
+        # extra edges between them — only a forbidden edge, or one that
+        # reaches outside the expected incident structure, is a real FP.
+        expected_incident_of: Dict[str, frozenset] = {}
+        for incident in expected.incidents:
+            if incident.grouped:
+                frozen = frozenset(incident.members)
+                for member in incident.members:
+                    expected_incident_of[member] = frozen
+
+        def _within_expected_incident(pair: Tuple[str, str]) -> bool:
+            a, b = pair
+            group_a = expected_incident_of.get(a)
+            group_b = expected_incident_of.get(b)
+            return group_a is not None and group_a == group_b
+
+        false_positive_pairs = {
+            pair for pair in extra_pairs if pair in forbidden_pairs or not _within_expected_incident(pair)
+        }
+    else:
+        false_positive_pairs = extra_pairs
 
     stage_mismatches = [
         pair

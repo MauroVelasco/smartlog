@@ -69,6 +69,18 @@ def test_load_case_rejects_a_leaking_tier2_case(tmp_path):
         load_case(path)
 
 
+def test_load_case_defaults_edge_scoring_to_exact(tmp_path):
+    path = _write_case(tmp_path, _base_case())
+    case = load_case(path)
+    assert case.edge_scoring == "exact"
+
+
+def test_load_case_accepts_incident_only_edge_scoring(tmp_path):
+    path = _write_case(tmp_path, _base_case(edge_scoring="incident_only"))
+    case = load_case(path)
+    assert case.edge_scoring == "incident_only"
+
+
 def test_load_case_rejects_duplicate_step_ids(tmp_path):
     dup = _base_case()
     dup["steps"][1]["id"] = "pg-step"  # collides with steps[0]
