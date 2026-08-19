@@ -1,0 +1,70 @@
+{
+  "case_id": "t2-trap-webhook-timeout-vs-vacuum-timeout",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Lexical trap: outbound webhook timeout vs autovacuum statement timeout, heavy vocabulary overlap, no real causal link",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "none",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "tomcat-webhook-timeout",
+      "source": "tomcat",
+      "wait_ms_before": 0,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "webhook-delivery-timeout",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "outbound webhook delivery timed out after 30000ms, notification retry scheduled"
+      }
+    },
+    {
+      "id": "pg-vacuum-timeout",
+      "source": "postgres",
+      "wait_ms_before": 700,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "canceling autovacuum task on table audit_log due to statement timeout",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "canceling autovacuum task on table audit_log due to statement timeout"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [],
+    "forbidden_edges": [
+      {
+        "from": "tomcat-webhook-timeout",
+        "to": "pg-vacuum-timeout",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.0
+      }
+    ],
+    "incidents": [
+      {
+        "members": [
+          "tomcat-webhook-timeout"
+        ],
+        "grouped": false
+      },
+      {
+        "members": [
+          "pg-vacuum-timeout"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}

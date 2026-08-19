@@ -1,0 +1,70 @@
+{
+  "case_id": "t2-trap-email-retry-vs-replication-retry",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Lexical trap: email confirmation send failure retry vs Postgres streaming replication retry, heavy vocabulary overlap, no real causal link",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "none",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "tomcat-email-retry",
+      "source": "tomcat",
+      "wait_ms_before": 0,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "email-confirmation-retry",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "order confirmation email send failed, queued for retry in 5 minutes"
+      }
+    },
+    {
+      "id": "pg-replication-retry",
+      "source": "postgres",
+      "wait_ms_before": 650,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "streaming replication connection to standby failed, retrying in 5 seconds",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "streaming replication connection to standby failed, retrying in 5 seconds"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [],
+    "forbidden_edges": [
+      {
+        "from": "tomcat-email-retry",
+        "to": "pg-replication-retry",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.0
+      }
+    ],
+    "incidents": [
+      {
+        "members": [
+          "tomcat-email-retry"
+        ],
+        "grouped": false
+      },
+      {
+        "members": [
+          "pg-replication-retry"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}
