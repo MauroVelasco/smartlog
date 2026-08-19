@@ -54,6 +54,25 @@ like `fields mdc.trxId | filter mdc.correlated = "true"`), and as
 `key=value` tokens inside the free-text `message` (good for `filter
 @message like /trxId=.../`, and for regex-based extraction - see below).
 
+### Random exceptions on ERROR events
+
+About 3 out of 4 ERROR-level events also get a synthetic Java exception
+attached (`RandomLogValues#randomException`), so the CloudWatch stream
+includes real-looking stack traces and not just plain-text error messages -
+`application.properties` already turns on
+`quarkus.log.console.json.determine-print-stack-trace-by-throwable` and
+`exception-output-type=formatted` for exactly this. The exception type is
+picked to roughly match the event's `error_code` (e.g. `DB-CONN-01` throws a
+`java.sql.SQLException`-family exception, `TIMEOUT-001` throws a
+`TimeoutException`/`SocketTimeoutException`); codes with no specific mapping
+fall back to a generic pool (`RuntimeException`, `IllegalStateException`,
+`NullPointerException`, `NoSuchElementException`). About 1 in 3 of those
+exceptions also gets a chained `Caused by:` exception, since real production
+traces are very often wrapped. This is unconditional (no separate on/off
+toggle) - it only ever changes what an ERROR event looks like, never WARN/
+INFO/DEBUG - and needs no extra dependency, since it's built entirely from
+JDK exception types.
+
 ### Compatibility with `log_correlation_poc`
 
 This folder also contains `log_correlation_poc`, whose CloudWatch extractor
@@ -101,7 +120,7 @@ Replace `<ACCOUNT_ID>` and `<REGION>` before registering either one.
 ```
 src/main/java/com/coderoad/logs/
   config/CorrelationConfig.java      resolves trxId/username/componentId per the boolean flag
-  generator/RandomLogValues.java     pure random value generators (usernames, components, messages, ...)
+  generator/RandomLogValues.java     pure random value generators (usernames, components, messages, exceptions, ...)
   generator/LogEventComposer.java    pure function: builds the final message text
   generator/LogGeneratorScheduler.java  @Scheduled bean that ties it together and logs
   health/LogGeneratorHealthCheck.java   /q/health for the ECS container health check

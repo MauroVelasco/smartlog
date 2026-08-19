@@ -54,6 +54,11 @@ public class LogGeneratorScheduler {
         String baseMessage = RandomLogValues.randomMessage(level);
         String errorCode = isWarnOrError(level) ? RandomLogValues.randomErrorCode() : null;
 
+        // Only ERROR events get a synthetic exception/stack trace attached -
+        // WARN/INFO/DEBUG stay plain text, matching how real applications
+        // typically only log a full Throwable at ERROR severity.
+        Throwable exception = "ERROR".equals(level) ? RandomLogValues.randomException(errorCode, baseMessage) : null;
+
         boolean identifierFree = correlationConfig.isIdentifierFree();
         String message = LogEventComposer.compose(
                 baseMessage, trxId, username, componentId, errorCode, emitCorrelationAliases, identifierFree);
@@ -70,8 +75,11 @@ public class LogGeneratorScheduler {
         if (errorCode != null) {
             MDC.put("errorCode", errorCode);
         }
+        if (exception != null) {
+            MDC.put("exceptionType", exception.getClass().getName());
+        }
         try {
-            log(level, message);
+            log(level, message, exception);
         } finally {
             MDC.clear();
         }
@@ -81,9 +89,18 @@ public class LogGeneratorScheduler {
         return "WARN".equals(level) || "ERROR".equals(level);
     }
 
-    private void log(String level, String message) {
+    private void log(String level, String message, Throwable exception) {
         switch (level) {
-            case "ERROR" -> LOG.error(message);
+            case "ERROR" -> {
+                if (exception != null) {
+                    // quarkus-logging-json (see determine-print-stack-trace-by-throwable /
+                    // exception-output-type in application.properties) renders this
+                    // Throwable's full stack trace, chained causes included.
+                    LOG.error(message, exception);
+                } else {
+                    LOG.error(message);
+                }
+            }
             case "WARN" -> LOG.warn(message);
             case "DEBUG" -> LOG.debug(message);
             default -> LOG.info(message);

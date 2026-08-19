@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * Pure, side-effect-free generators for random log content. Kept free of any
@@ -82,6 +83,58 @@ public final class RandomLogValues {
             )
     );
 
+    /**
+     * Per-error-code exception "flavor" pools, so a stack trace attached to a
+     * {@code DB-CONN-01} event looks like a JDBC failure, a
+     * {@code TIMEOUT-001} event looks like a network timeout, and so on,
+     * rather than an arbitrary unrelated exception type. Any error code not
+     * listed here falls back to {@link #GENERIC_EXCEPTION_FACTORIES}.
+     */
+    private static final Map<String, List<Function<String, Throwable>>> EXCEPTION_FACTORIES_BY_ERROR_CODE = Map.of(
+            "DB-CONN-01", List.of(
+                    message -> new java.sql.SQLException(message, "08001"),
+                    message -> new java.sql.SQLTransientException(message)
+            ),
+            "TIMEOUT-001", List.of(
+                    message -> new java.util.concurrent.TimeoutException(message),
+                    message -> new java.net.SocketTimeoutException(message)
+            ),
+            "AUTH-403", List.of(
+                    message -> new SecurityException(message)
+            ),
+            "VALIDATION-422", List.of(
+                    message -> new IllegalArgumentException(message)
+            ),
+            "RATE-LIMIT-429", List.of(
+                    message -> new java.util.concurrent.RejectedExecutionException(message)
+            ),
+            "DEP-UNAVAILABLE", List.of(
+                    message -> new java.io.IOException(message),
+                    message -> new java.net.ConnectException(message)
+            ),
+            "ERR-5030", List.of(
+                    message -> new java.io.IOException(message)
+            )
+    );
+
+    /** Fallback pool for error codes ({@code ERR-4001}, {@code ERR-4030}, {@code ERR-5000}) with no specific flavor mapping above. */
+    private static final List<Function<String, Throwable>> GENERIC_EXCEPTION_FACTORIES = List.of(
+            RuntimeException::new,
+            IllegalStateException::new,
+            NullPointerException::new,
+            java.util.NoSuchElementException::new
+    );
+
+    /** Short, low-level failure descriptions used for the chained "Caused by:" exception. */
+    private static final List<String> EXCEPTION_CAUSE_MESSAGES = List.of(
+            "Connection reset by peer",
+            "Read timed out",
+            "Connection refused",
+            "Unexpected end of stream",
+            "Broken pipe",
+            "No route to host"
+    );
+
     private RandomLogValues() {
     }
 
@@ -128,6 +181,35 @@ public final class RandomLogValues {
     }
 
     /**
+     * Builds a synthetic exception to attach to an ERROR-level event, chosen
+     * from a pool that roughly matches the given error code's flavor (a
+     * {@code DB-CONN-01} error looks like a JDBC failure, {@code TIMEOUT-001}
+     * like a network timeout, etc.) so the stack trace CloudWatch receives
+     * looks like it could plausibly have produced the accompanying message.
+     *
+     * <p>Returns {@code null} about a quarter of the time - not every ERROR
+     * event in a real system was triggered by a caught exception (some are
+     * plain business-rule failures), so callers should treat a {@code null}
+     * result as "log this ERROR without a stack trace". About a third of the
+     * non-null results also get a chained "Caused by:" exception, since real
+     * production stack traces are very often wrapped.
+     */
+    public static Throwable randomException(String errorCode, String baseMessage) {
+        if (RANDOM.nextInt(4) == 0) {
+            return null;
+        }
+        List<Function<String, Throwable>> pool =
+                EXCEPTION_FACTORIES_BY_ERROR_CODE.getOrDefault(errorCode, GENERIC_EXCEPTION_FACTORIES);
+        Throwable exception = pick(pool).apply(baseMessage);
+
+        if (RANDOM.nextInt(3) == 0) {
+            Throwable cause = pick(GENERIC_EXCEPTION_FACTORIES).apply(pick(EXCEPTION_CAUSE_MESSAGES));
+            exception.initCause(cause);
+        }
+        return exception;
+    }
+
+    /**
      * Reduces an arbitrary configured value (trxId/username/componentId, which
      * are emitted verbatim everywhere else) down to the character set the
      * log_correlation_poc extraction regexes require, so the compatibility
@@ -146,7 +228,7 @@ public final class RandomLogValues {
         return padded.toString();
     }
 
-    private static String pick(List<String> pool) {
+    private static <T> T pick(List<T> pool) {
         return pool.get(RANDOM.nextInt(pool.size()));
     }
 }
