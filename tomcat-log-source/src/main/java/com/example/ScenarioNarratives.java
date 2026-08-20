@@ -44,7 +44,23 @@ final class ScenarioNarratives {
                     "order pricing cache warmed successfully, 128 entries loaded")),
             // benign noise — t2-three-hop-chain middle hop / general filler
             Map.entry("inventory-checked", new Entry(Level.INFO,
-                    "inventory check completed for order batch, no discrepancies found")));
+                    "inventory check completed for order batch, no discrepancies found")),
+            // t2-trap-webhook-timeout-vs-vacuum-timeout counterpart — heavy
+            // "timeout"/"retry" vocabulary overlap with a genuinely unrelated
+            // Postgres autovacuum statement timeout (lexical trap, not a
+            // real causal link)
+            Map.entry("webhook-delivery-timeout", new Entry(Level.SEVERE,
+                    "WebhookDeliveryException: outbound webhook delivery timed out after 30000ms, notification retry scheduled")),
+            // t2-trap-cart-lock-vs-stats-lock counterpart — heavy "lock"
+            // vocabulary overlap with a genuinely unrelated Postgres
+            // advisory lock held by another session (lexical trap)
+            Map.entry("cart-optimistic-lock", new Entry(Level.SEVERE,
+                    "OptimisticLockException: could not update shopping cart quantity, please retry checkout")),
+            // t2-trap-email-retry-vs-replication-retry counterpart — heavy
+            // "failed"/"retry" vocabulary overlap with a genuinely unrelated
+            // Postgres streaming replication retry (lexical trap)
+            Map.entry("email-confirmation-retry", new Entry(Level.WARNING,
+                    "EmailDeliveryException: order confirmation email send failed, queued for retry in 5 minutes")));
 
     static Entry lookup(String name) {
         return CATALOG.get(name);

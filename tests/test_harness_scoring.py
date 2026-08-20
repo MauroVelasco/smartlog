@@ -254,3 +254,67 @@ def test_score_forbidden_edges_empty_when_forbidden_pair_never_links():
     result = score([pg_event, tomcat_event], edges, anchors, expected)
 
     assert result.forbidden_edges_observed == []
+
+
+# --- score: edge_scoring="incident_only" (transitive-chain cases) ---
+
+
+def test_score_incident_only_does_not_penalize_extra_edge_within_expected_incident():
+    """A chain case (A-B-C expected as one incident via A-B + B-C edges)
+    should not FAIL just because the pipeline also links A-C directly — all
+    three are already correctly in the same expected incident, so that
+    extra edge isn't a real false positive under 'incident_only' scoring."""
+    a = _event(SourceSystem.POSTGRES, "a")
+    b = _event(SourceSystem.TOMCAT, "b", minute=1)
+    c = _event(SourceSystem.POSTGRES, "c", minute=2)
+    anchors = {"pg-a": a, "tomcat-b": b, "pg-c": c}
+    edges = [
+        _edge(a.event_id, b.event_id),
+        _edge(b.event_id, c.event_id),
+        _edge(a.event_id, c.event_id),  # extra, but both already in the same expected incident
+    ]
+    expected = Expected(
+        edges=[
+            ExpectedEdge(**{"from": "pg-a", "to": "tomcat-b", "relation_type": "semantic_similarity", "min_confidence": 0.55}),
+            ExpectedEdge(**{"from": "tomcat-b", "to": "pg-c", "relation_type": "semantic_similarity", "min_confidence": 0.55}),
+        ],
+        incidents=[ExpectedIncident(members=["pg-a", "tomcat-b", "pg-c"], grouped=True)],
+    )
+
+    exact_result = score([a, b, c], edges, anchors, expected, edge_scoring="exact")
+    incident_only_result = score([a, b, c], edges, anchors, expected, edge_scoring="incident_only")
+
+    # Default ("exact") behavior is untouched: the extra edge still counts.
+    assert exact_result.false_positives == [("pg-a", "pg-c")]
+    # incident_only scoring does not penalize it.
+    assert incident_only_result.false_positives == []
+    assert incident_only_result.true_positives == [("pg-a", "tomcat-b"), ("pg-c", "tomcat-b")]
+
+
+def test_score_incident_only_still_flags_a_genuinely_forbidden_edge():
+    """incident_only must not weaken forbidden_edges — a link the case
+    explicitly asserts must never happen still counts as a false positive
+    even though both endpoints are anchors within the same run."""
+    a = _event(SourceSystem.POSTGRES, "a")
+    b = _event(SourceSystem.TOMCAT, "b", minute=1)
+    c = _event(SourceSystem.POSTGRES, "c", minute=2)
+    d = _event(SourceSystem.TOMCAT, "d", minute=3)
+    anchors = {"pg-a": a, "tomcat-b": b, "pg-c": c, "tomcat-d": d}
+    edges = [
+        _edge(a.event_id, b.event_id),
+        _edge(b.event_id, c.event_id),
+        _edge(c.event_id, d.event_id),  # forbidden — c and d are unrelated
+    ]
+    expected = Expected(
+        edges=[
+            ExpectedEdge(**{"from": "pg-a", "to": "tomcat-b", "relation_type": "semantic_similarity", "min_confidence": 0.55}),
+            ExpectedEdge(**{"from": "tomcat-b", "to": "pg-c", "relation_type": "semantic_similarity", "min_confidence": 0.55}),
+        ],
+        forbidden_edges=[ExpectedEdge(**{"from": "pg-c", "to": "tomcat-d", "relation_type": "semantic_similarity", "min_confidence": 0.0})],
+        incidents=[ExpectedIncident(members=["pg-a", "tomcat-b", "pg-c"], grouped=True)],
+    )
+
+    result = score([a, b, c, d], edges, anchors, expected, edge_scoring="incident_only")
+
+    assert result.forbidden_edges_observed == [("pg-c", "tomcat-d")]
+    assert ("pg-c", "tomcat-d") in result.false_positives

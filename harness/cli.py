@@ -33,6 +33,7 @@ from harness.report import (
     STATUS_TIMEOUT,
     STATUS_UNRESOLVED,
     CaseRunResult,
+    empty_semantic_result_chunks,
     exit_code,
     render_report,
 )
@@ -98,7 +99,7 @@ def run_case(
             status=STATUS_ERRORED, observer=recorder, gate_untrustworthy=gate_untrustworthy,
         )
 
-    result = score(events, edges, anchors, case.expected)
+    result = score(events, edges, anchors, case.expected, edge_scoring=case.edge_scoring)
     reproduced_ok = (
         not result.false_positives
         and not result.false_negatives
@@ -129,6 +130,7 @@ def _result_to_dict(result: CaseRunResult) -> dict:
         "unresolved_steps": result.unresolved_steps,
         "timeout_missing": result.timeout_missing,
         "gate_untrustworthy": result.gate_untrustworthy,
+        "empty_semantic_results": len(empty_semantic_result_chunks(result.observer)),
     }
 
 

@@ -1,0 +1,70 @@
+{
+  "case_id": "t2-trap-cart-lock-vs-stats-lock",
+  "tier": 2,
+  "outcome_class": "value",
+  "title": "Lexical trap: shopping cart optimistic-lock retry vs Postgres advisory-lock skipped stats refresh, heavy vocabulary overlap, no real causal link",
+  "identifier_free": true,
+  "gated_by_phase3": true,
+  "expected_stage": "none",
+  "use_llm": true,
+  "steps": [
+    {
+      "id": "tomcat-cart-lock",
+      "source": "tomcat",
+      "wait_ms_before": 0,
+      "http": {
+        "path": "/api/orders/scenario",
+        "query": {
+          "name": "cart-optimistic-lock",
+          "identifierFree": "true"
+        }
+      },
+      "emits": {
+        "source_system": "tomcat",
+        "message_contains": "could not update shopping cart quantity, please retry checkout"
+      }
+    },
+    {
+      "id": "pg-stats-lock",
+      "source": "postgres",
+      "wait_ms_before": 750,
+      "sql": {
+        "function": "harness.emit_log",
+        "args": {
+          "p_level": "WARNING",
+          "p_message": "skipping scheduled statistics refresh job, advisory lock held by another session",
+          "p_identifier_free": true
+        }
+      },
+      "emits": {
+        "source_system": "postgres",
+        "message_contains": "skipping scheduled statistics refresh job, advisory lock held by another session"
+      }
+    }
+  ],
+  "expected": {
+    "edges": [],
+    "forbidden_edges": [
+      {
+        "from": "tomcat-cart-lock",
+        "to": "pg-stats-lock",
+        "relation_type": "semantic_similarity",
+        "min_confidence": 0.0
+      }
+    ],
+    "incidents": [
+      {
+        "members": [
+          "tomcat-cart-lock"
+        ],
+        "grouped": false
+      },
+      {
+        "members": [
+          "pg-stats-lock"
+        ],
+        "grouped": false
+      }
+    ]
+  }
+}

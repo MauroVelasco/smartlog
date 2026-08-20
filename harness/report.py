@@ -29,6 +29,17 @@ STATUS_NOT_REPRODUCED = "NOT_REPRODUCED"
 _INFRA_FAILURE_STATUSES = {STATUS_ERRORED, STATUS_TIMEOUT}
 
 
+def empty_semantic_result_chunks(observer: Optional[RecordingObserver]) -> List[List]:
+    """Chunks where `on_raw_result` fired with a genuinely empty
+    `CorrelationResult` (zero proposed links) — distinct from a chunk the
+    harness never sent to the LLM (`on_skip`) and distinct from a call that
+    raised (`on_error`). Without this, "the model considered this pair and
+    explicitly found nothing" was indistinguishable from "we have no data"."""
+    if observer is None:
+        return []
+    return [chunk for chunk, result in observer.raw_results if not result.links]
+
+
 @dataclass
 class CaseRunResult:
     case_id: str
@@ -74,6 +85,8 @@ def format_case_detail(result: CaseRunResult) -> str:
     if result.observer is not None:
         for skip_bucket, reason in result.observer.skips:
             lines.append(f"    bucket_skipped ({reason}): {len(skip_bucket)} events")
+        for chunk in empty_semantic_result_chunks(result.observer):
+            lines.append(f"    chunk of {len(chunk)} events: LLM proposed 0 links (empty result)")
         for link in result.observer.sub_threshold_links:
             lines.append(
                 f"    sub_threshold_link: {link.source_event_id[:8]}..->{link.target_event_id[:8]}.. "

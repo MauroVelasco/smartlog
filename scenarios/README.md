@@ -16,10 +16,26 @@ and validated by `harness/loader.py` before it's ever triggered.
   "gated_by_phase3": true,                  // true if this case depends on the zero-deterministic-edges gate (Phase 3)
   "expected_stage": "semantic",             // "deterministic" | "semantic" | "none" | "mixed"
   "use_llm": true,                          // whether the harness calls run_correlation(..., use_llm=...)
+  "edge_scoring": "exact",                  // optional, default "exact"; see "edge_scoring" below
   "steps": [ /* Step, discriminated on "source" */ ],
   "expected": { /* hidden ground truth — see below */ }
 }
 ```
+
+### `edge_scoring` (optional, default `"exact"`)
+
+Most cases should leave this unset — the default `"exact"` behavior scores
+`false_positives` as a strict set difference against `expected.edges`,
+which is exactly what should catch a real false link. Transitive-chain
+cases (A-B + B-C both expected, all three in one incident) are an
+exception: the pipeline correctly grouping all three members can also
+produce a valid-but-non-minimal direct A-C edge, which `"exact"` would
+wrongly count as a false positive. `"incident_only"` relaxes this: an edge
+between two anchors that are BOTH already correctly members of the same
+expected `grouped: true` incident is not counted as a false positive.
+`forbidden_edges` is unaffected either way — a pair explicitly asserted as
+"must not link" still fails the case under `"incident_only"` too. Only
+`t2-three-hop-chain` sets this today.
 
 ### Steps (discriminated on `source`)
 
@@ -68,7 +84,7 @@ or `mdc.correlated`) — see the harness design's Decision 2 for why.
 naturally produces 1-node components for unlinked events, and these are
 explicitly excluded from precision/recall scoring, not counted as misses.
 
-## Case catalog (13 cases)
+## Case catalog (16 cases)
 
 | case_id | Tier | Gated by Phase 3? | Asserts |
 |---|---|---|---|
@@ -79,12 +95,29 @@ explicitly excluded from precision/recall scoring, not counted as misses.
 | `t2-slow-query-vs-gateway-timeout` | 2 | Yes | Postgres long-running statement ↔ Tomcat upstream read timeout |
 | `t2-constraint-violation-vs-validation` | 2 | Yes | Postgres unique-constraint violation ↔ Tomcat validation rejection |
 | `t2-restart-vs-connection-reset` | 2 | Yes | Postgres crash-recovery narrative ↔ Tomcat connection reset |
-| `t2-negative-unrelated` | 2 | Yes | **Precision guard**: two unrelated events must NOT link |
-| `t2-three-hop-chain` | 2 | Yes | A(pg)-B(tomcat)-C(pg): A-B + B-C merge into one 3-member incident |
+| `t2-negative-unrelated` | 2 | Yes | **Precision guard**: two unrelated, low-overlap events must NOT link |
+| `t2-trap-webhook-timeout-vs-vacuum-timeout` | 2 | Yes | **Lexical trap**: "timeout"/"retry" overlap, webhook delivery vs autovacuum — must NOT link |
+| `t2-trap-cart-lock-vs-stats-lock` | 2 | Yes | **Lexical trap**: "lock" overlap, cart concurrency vs stats-refresh scheduling — must NOT link |
+| `t2-trap-email-retry-vs-replication-retry` | 2 | Yes | **Lexical trap**: "failed"/"retry" overlap, email delivery vs DB replication — must NOT link |
+| `t2-three-hop-chain` | 2 | Yes | A(pg)-B(tomcat)-C(pg): A-B + B-C merge into one 3-member incident (`edge_scoring: "incident_only"`) |
 | `doc-single-source-bucket-skipped` | doc | Yes | A single-source-system bucket is never sent to the LLM (`langchain_agents.py:135`) |
 | `doc-batch-split-unlinkable` | doc | Yes | A real pair straddling the 25-event chunk boundary can never link |
 | `doc-error-code-false-link` | doc | **No** (deterministic-only) | Shared `error_code=DB_TIMEOUT` links two unrelated events at 1.0 — **intended**, see below |
 | `doc-hybrid-component-merge` | doc | Yes | Deterministic edge removes one member of a would-be semantic pair — see below |
+
+### Lexical traps vs `t2-negative-unrelated`
+
+`t2-negative-unrelated` is both low-vocabulary-overlap AND unrelated —
+it can't test whether the LLM resists surface pattern-matching, because
+there's no tempting overlap to resist. The `t2-trap-*` cases are the
+opposite construction: deliberately HIGH surface vocabulary overlap
+between a Tomcat and a Postgres event that are genuinely unrelated
+subsystems (outbound webhook delivery vs internal vacuum maintenance;
+user-facing cart concurrency vs internal stats-refresh scheduling;
+outbound email delivery vs DB replication topology). These test
+*restraint under temptation* — whether the model is doing causal
+reasoning or just fancy string matching — which the passing
+`t2-*-vs-*` cases mostly can't distinguish on their own.
 
 `outcome_class: "documented-limitation"` cases are reported as
 *reproduced / not reproduced*, never pass/fail.
