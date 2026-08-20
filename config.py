@@ -73,7 +73,7 @@ SEMANTIC_TIME_BUCKET_SECONDS = int(os.getenv("SEMANTIC_TIME_BUCKET_SECONDS", "12
 SEMANTIC_MAX_BATCH_SIZE = int(os.getenv("SEMANTIC_MAX_BATCH_SIZE", "25"))
 SEMANTIC_MIN_CONFIDENCE = float(os.getenv("SEMANTIC_MIN_CONFIDENCE", "0.55"))
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")  # "anthropic" | "openai" | "gemini"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")  # "anthropic" | "openai" | "gemini" | "openrouter"
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-5")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
 

@@ -111,6 +111,47 @@ def _build_llm():
         # GOOGLE_API_KEY, falling back to GEMINI_API_KEY, via its own
         # default_factory — no need to read the env var here ourselves.
         return ChatGoogleGenerativeAI(model=model, temperature=config.LLM_TEMPERATURE)
+    elif config.LLM_PROVIDER == "openrouter":
+        from langchain_openai import ChatOpenAI
+
+        # OpenRouter exposes an OpenAI-compatible Chat Completions API, so —
+        # same pattern as the GitHub Models decision in
+        # architecture/mvp-scope-and-llm-provider — it reuses ChatOpenAI
+        # pointed at a different base_url instead of a new SDK/package.
+        #
+        # config.LLM_MODEL's own default ("claude-sonnet-5") is Anthropic-
+        # specific and shared across all providers, so only fall back to it
+        # when LLM_MODEL was actually set by the caller/env; otherwise use an
+        # OpenRouter-appropriate default. "openai/gpt-4o-mini" is used
+        # because OpenRouter's model listing (checked live via
+        # GET /api/v1/models as of 2026-08-19) reports "tools", "tool_choice",
+        # and "structured_outputs" in its supported_parameters — this
+        # pipeline calls .with_structured_output(CorrelationResult), which
+        # needs reliable function/tool calling, and free/open OpenRouter
+        # models were already rejected for this exact reason in
+        # architecture/mvp-scope-and-llm-provider ("irregular tool-calling on
+        # free open models"). OpenRouter's own slash-namespaced id
+        # ("openai/gpt-4o-mini") differs from the plain "gpt-4o-mini" used by
+        # the "openai" branch above — the namespace prefix is required by
+        # OpenRouter's routing.
+        model = config.LLM_MODEL if os.getenv("LLM_MODEL") else "openai/gpt-4o-mini"
+        # ChatOpenAI's own validate_environment() falls back to OPENAI_API_KEY
+        # whenever the resolved api_key is None (langchain_core.utils._gateway.
+        # _resolve_gateway_config only special-cases "api_key is not None" —
+        # it does not distinguish "never passed" from "explicitly passed as
+        # None"), so silently omitting api_key here would authenticate
+        # against OpenRouter with an OPENAI_API_KEY-shaped credential from a
+        # completely different provider if one happens to be set. Passing
+        # os.getenv("OPENROUTER_API_KEY", "") keeps the value a non-None
+        # string even when unset, so that fallback lookup never runs; the
+        # openai SDK client then raises "Missing credentials" immediately at
+        # construction instead, which is the correct fail-loud behavior.
+        return ChatOpenAI(
+            model=model,
+            temperature=config.LLM_TEMPERATURE,
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY", ""),
+        )
     raise ValueError(f"Unsupported LLM_PROVIDER: {config.LLM_PROVIDER}")
 
 
