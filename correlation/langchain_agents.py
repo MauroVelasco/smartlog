@@ -42,22 +42,45 @@ logs across a dozen browser tabs.
 
 Only propose a link when there is real textual or causal evidence — do \
 not link events just because they happened at a similar time. Be \
-conservative: false links are worse than missed ones. For every link you \
-propose, give a confidence score between 0 and 1 and a short rationale."""
+conservative: false links are worse than missed ones.
+
+You are writing for an on-call engineer who is already looking at both log \
+lines on screen, mid-incident. Obey these rules for every link:
+
+- Do NOT quote, paraphrase, or restate the log messages. They can see them.
+- Do NOT argue for your own confidence score. It is displayed separately.
+- Name the causal direction explicitly: which event is the upstream cause \
+and which is the downstream symptom. If the two are joint symptoms of an \
+unobserved third cause, say so and pick the one closer to the root.
+- `summary` is ONE sentence, at most 30 words, in plain language: what is \
+actually happening across these systems. Lead with the mechanism, not with \
+your reasoning process.
+- `next_step` is ONE concrete action the engineer can take right now to \
+confirm or fix it — a specific thing to check, query, or change. Not \
+"investigate further", not "monitor the situation"."""
 
 USER_PROMPT = """Log events (event_id | source_system | timestamp | level | message):
 {event_lines}
 
-Return every plausible correlation as a pair of event_ids with a \
-confidence score and rationale. If nothing plausibly correlates, return \
-an empty list."""
+Return every plausible correlation as a pair of event_ids. If nothing \
+plausibly correlates, return an empty list."""
 
 
 class ProposedLink(BaseModel):
     source_event_id: str = Field(description="event_id of the first event in the pair")
     target_event_id: str = Field(description="event_id of the second event in the pair")
     confidence: float = Field(description="0.0-1.0 confidence this is a real correlation")
-    rationale: str = Field(description="short explanation of the causal/textual evidence")
+    root_cause_event_id: str = Field(
+        description="Whichever of the two event_ids is the upstream cause; the other is the downstream symptom"
+    )
+    summary: str = Field(
+        description="ONE sentence, max 30 words, plain language: the mechanism linking these systems. "
+        "Never quote or restate the log messages"
+    )
+    next_step: str = Field(
+        description="ONE concrete action to confirm or fix it right now — a specific thing to check, "
+        "query, or change. Never 'investigate further'"
+    )
 
 
 class CorrelationResult(BaseModel):
@@ -155,6 +178,21 @@ def _build_llm():
     raise ValueError(f"Unsupported LLM_PROVIDER: {config.LLM_PROVIDER}")
 
 
+def _render_rationale(link: "ProposedLink", source_by_id: dict) -> str:
+    """Flattens the structured link fields into the single free-text
+    matched_on column the Relationship Store already has, so no schema
+    migration is needed. Rendered as fixed lines rather than a paragraph:
+    the Visualization UI shows this with white-space:pre-wrap, and an
+    on-call reader scans it instead of reading it."""
+    lines = [link.summary.strip()]
+    root_source = source_by_id.get(link.root_cause_event_id)
+    if root_source:
+        lines.append(f"\nROOT CAUSE  {root_source}")
+    if link.next_step.strip():
+        lines.append(f"NEXT STEP   {link.next_step.strip()}")
+    return "\n".join(lines)
+
+
 def _format_events(events: List[LogEvent]) -> str:
     lines = []
     for e in events:
@@ -226,6 +264,7 @@ class SemanticCorrelationAgent:
 
     def _correlate_chunk(self, chunk: List[LogEvent]) -> List[CorrelationEdge]:
         valid_ids = {e.event_id for e in chunk}
+        source_by_id = {e.event_id: e.source_system for e in chunk}
         try:
             result: CorrelationResult = self._chain.invoke({"event_lines": _format_events(chunk)})
         except Exception as exc:
@@ -251,7 +290,7 @@ class SemanticCorrelationAgent:
                     target_event_id=link.target_event_id,
                     relation_type=RelationType.SEMANTIC_SIMILARITY,
                     confidence=link.confidence,
-                    matched_on=link.rationale,
+                    matched_on=_render_rationale(link, source_by_id),
                 )
             )
         return edges

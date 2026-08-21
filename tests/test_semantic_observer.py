@@ -107,7 +107,7 @@ def test_on_raw_result_fires_before_confidence_filter_with_sub_threshold_link():
         source_event_id=a.event_id,
         target_event_id=b.event_id,
         confidence=0.1,  # below SEMANTIC_MIN_CONFIDENCE (0.55 default)
-        rationale="weak textual overlap",
+        root_cause_event_id="e1", summary="weak textual overlap", next_step="check the pool",
     )
     raw_result = CorrelationResult(links=[sub_threshold_link])
     recorder = _RecordingObserver()

@@ -44,7 +44,7 @@ def test_format_case_detail_surfaces_empty_raw_result_distinctly():
 def test_format_case_detail_does_not_report_empty_for_a_non_empty_result():
     a = _event(SourceSystem.POSTGRES)
     b = _event(SourceSystem.TOMCAT, minute=1)
-    link = ProposedLink(source_event_id=a.event_id, target_event_id=b.event_id, confidence=0.9, rationale="matches")
+    link = ProposedLink(source_event_id=a.event_id, target_event_id=b.event_id, confidence=0.9, root_cause_event_id=a.event_id, summary="matches", next_step="check the pool")
     recorder = RecordingObserver()
     recorder.on_raw_result([a, b], CorrelationResult(links=[link]))
 
