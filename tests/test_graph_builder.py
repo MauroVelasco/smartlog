@@ -38,6 +38,13 @@ def test_build_graph_json_full():
     assert node["borderWidth"] == 3  # ERROR level gets a highlighted border
     edge = result["edges"][0]
     assert edge["dashes"] is False  # id_match is deterministic, drawn solid
+    # vis-network renders a string title as plain text, so a literal <br>
+    # would show up in the tooltip instead of breaking the line.
+    assert "<br>" not in edge["title"]
+    # The detail panel reads matched_on off the edge on click — hovering a
+    # long semantic rationale in the tooltip is not enough.
+    assert edge["raw"]["matched_on"] == "request_id"
+    assert edge["raw"]["relation_type"] == "id_match"
 
 
 def test_build_graph_json_filters_by_incident():
