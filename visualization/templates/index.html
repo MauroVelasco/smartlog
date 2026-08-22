@@ -33,7 +33,11 @@
   #legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
   #legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
   #empty-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; padding: 40px; }
-  #toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; }
+  /* vis-network mounts a positioned frame inside #network, which follows
+     #toolbar in DOM order — with both at z-index auto the canvas paints on
+     top and swallows every click on these buttons, so they look enabled but
+     do nothing. */
+  #toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; z-index: 2; }
   button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
   button:hover { border-color: var(--accent); }
   #stats { font-size: 11px; color: var(--muted); }
@@ -117,6 +121,11 @@ function renderGraph(data) {
   const nodes = new vis.DataSet(data.nodes);
   const edges = new vis.DataSet(data.edges);
   network = new vis.Network(container, { nodes, edges }, options);
+
+  // autoResize shifts the camera by half the new container size on every
+  // resize instead of holding the view centre, so the graph slides off-screen
+  // and never recovers on its own. Re-fit whenever the canvas is resized.
+  network.on("resize", () => network.fit());
 
   network.on("click", (params) => {
     const panel = document.getElementById("detail-panel");
