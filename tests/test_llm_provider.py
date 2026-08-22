@@ -15,9 +15,13 @@ from correlation.langchain_agents import _build_llm
 def restore_llm_config():
     original_provider = config.LLM_PROVIDER
     original_model = config.LLM_MODEL
+    original_order = config.OPENROUTER_PROVIDER_ORDER
+    original_fallbacks = config.OPENROUTER_ALLOW_FALLBACKS
     yield
     config.LLM_PROVIDER = original_provider
     config.LLM_MODEL = original_model
+    config.OPENROUTER_PROVIDER_ORDER = original_order
+    config.OPENROUTER_ALLOW_FALLBACKS = original_fallbacks
 
 
 def test_build_llm_gemini_constructs_chat_google_generative_ai(restore_llm_config, monkeypatch):
@@ -117,3 +121,47 @@ def test_build_llm_unsupported_provider_raises(restore_llm_config):
 
     with pytest.raises(ValueError, match="Unsupported LLM_PROVIDER"):
         _build_llm()
+
+
+def test_build_llm_openrouter_pins_backend_provider_routing(restore_llm_config, monkeypatch):
+    """OpenRouter load-balances one model id across many backend providers,
+    and several of them return tool-call arguments this pipeline cannot parse
+    (measured 2026-08-21 on z-ai/glm-5.2: Mistral 0/3 valid, emitting raw
+    '<tool_call>...<arg_key>' chat-template tokens; Friendli/Fireworks 3/3).
+    Because .with_structured_output(CorrelationResult) parses those arguments,
+    unpinned routing turns a correct run into a pydantic "Invalid JSON" error
+    at random, so the routing block must actually reach the wire."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key-for-construction-only")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    config.LLM_PROVIDER = "openrouter"
+    config.LLM_MODEL = "z-ai/glm-5.2"
+    config.OPENROUTER_PROVIDER_ORDER = ["Friendli", "Fireworks"]
+    config.OPENROUTER_ALLOW_FALLBACKS = False
+
+    llm = _build_llm()
+
+    # "provider" is an OpenRouter extension, not an OpenAI Chat Completions
+    # field, so it can only travel as extra_body — asserting on the config
+    # value alone would still pass if the wiring were dropped.
+    routing = llm.extra_body["provider"]
+    assert routing["order"] == ["Friendli", "Fireworks"]
+    assert routing["allow_fallbacks"] is False
+    assert routing["require_parameters"] is True
+
+
+def test_build_llm_openrouter_routing_follows_config_overrides(restore_llm_config, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key-for-construction-only")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    config.LLM_PROVIDER = "openrouter"
+    config.LLM_MODEL = "z-ai/glm-5.2"
+    config.OPENROUTER_PROVIDER_ORDER = ["Fireworks"]
+    config.OPENROUTER_ALLOW_FALLBACKS = True
+
+    routing = _build_llm().extra_body["provider"]
+
+    assert routing["order"] == ["Fireworks"]
+    assert routing["allow_fallbacks"] is True
+    # require_parameters stays on even with fallbacks enabled: it is what keeps
+    # an escape-hatch fallback from landing on a provider that does not declare
+    # tool/structured-output support at all.
+    assert routing["require_parameters"] is True
