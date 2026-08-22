@@ -98,8 +98,20 @@ def _edge_to_vis(u: str, v: str, data: Dict) -> Dict:
         "dashes": is_inferred,
         "width": max(1, round(confidence * 4)),
         "color": {"color": "#B0BEC5" if is_inferred else "#37474F", "opacity": max(0.3, confidence)},
-        "title": f"{relation_type} (confidence {confidence:.2f})<br>{data.get('matched_on', '')}",
+        # vis-network renders a string `title` as plain text, not HTML, so an
+        # embedded <br> shows up literally in the tooltip. A newline plus
+        # white-space:pre-wrap on .vis-tooltip (see index.html) is what
+        # actually breaks the line.
+        "title": f"{relation_type} (confidence {confidence:.2f})\n{data.get('matched_on', '')}",
         "label": relation_type.replace("_", " "),
+        # Mirrors the nodes' `raw` payload so clicking an edge can open the
+        # detail panel: for semantic edges matched_on holds the LLM's own
+        # reasoning, which is too long to read in a hover tooltip.
+        "raw": {
+            "relation_type": relation_type,
+            "confidence": confidence,
+            "matched_on": data.get("matched_on", ""),
+        },
     }
 
 

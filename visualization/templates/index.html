@@ -37,6 +37,12 @@
   button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
   button:hover { border-color: var(--accent); }
   #stats { font-size: 11px; color: var(--muted); }
+  /* vis-network's default tooltip is a single nowrap line, so a long
+     semantic-match explanation runs off the viewport instead of wrapping. */
+  div.vis-tooltip { white-space: pre-wrap !important; max-width: 360px !important; font-family: inherit !important; font-size: 11px !important; line-height: 1.45 !important; }
+  /* matched_on arrives as fixed lines (summary / ROOT CAUSE / NEXT STEP),
+     so preserve them instead of collapsing into a paragraph. */
+  #detail-panel .reasoning { background: #0f1520; border-left: 2px solid var(--accent); padding: 8px 10px; border-radius: 4px; line-height: 1.5; white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -126,6 +132,18 @@ function renderGraph(data) {
           <dt>Host</dt><dd>${raw.host || "-"}</dd>
           <dt>Message</dt><dd>${raw.message}</dd>
           ${idPairs}
+        </dl>`;
+      panel.style.display = "block";
+    } else if (params.edges.length) {
+      const raw = edges.get(params.edges[0]).raw;
+      const isInferred = raw.relation_type === "semantic_similarity";
+      panel.innerHTML = `
+        <h3>${isInferred ? "LLM-inferred link" : "Deterministic link"}</h3>
+        <dl>
+          <dt>Relation</dt><dd>${raw.relation_type}</dd>
+          <dt>Confidence</dt><dd>${raw.confidence.toFixed(2)}</dd>
+          <dt>${isInferred ? "Why the LLM linked these" : "Matched on"}</dt>
+          <dd class="${isInferred ? "reasoning" : ""}">${raw.matched_on || "-"}</dd>
         </dl>`;
       panel.style.display = "block";
     } else {

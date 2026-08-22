@@ -49,7 +49,7 @@ class RecordingObserver(SemanticObserver):
                         source_event_id=link.source_event_id,
                         target_event_id=link.target_event_id,
                         confidence=link.confidence,
-                        rationale=link.rationale,
+                        rationale=link.summary,
                     )
                 )
 

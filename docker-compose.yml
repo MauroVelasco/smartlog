@@ -26,6 +26,14 @@ services:
       - log_error_verbosity=terse
       - -c
       - log_min_error_statement=panic
+      # PG15+ defaults log_checkpoints=on, which writes a "checkpoint
+      # starting/complete" INFO pair every 5 minutes. normalize() filters
+      # only by time window, not by level, so those two lines get ingested
+      # as real LogEvents and surface in the UI as phantom single-event
+      # incidents whenever a demo/harness window happens to span a
+      # checkpoint.
+      - -c
+      - log_checkpoints=off
     ports:
       - "5432:5432"
     volumes:
