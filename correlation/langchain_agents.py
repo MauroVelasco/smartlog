@@ -169,11 +169,27 @@ def _build_llm():
         # string even when unset, so that fallback lookup never runs; the
         # openai SDK client then raises "Missing credentials" immediately at
         # construction instead, which is the correct fail-loud behavior.
+        #
+        # OpenRouter reads "provider" from the top level of the request body,
+        # which is not an OpenAI Chat Completions field, so it travels via
+        # extra_body rather than a ChatOpenAI constructor argument. Without it
+        # OpenRouter picks a backend per request and structured output becomes
+        # a coin flip — see config.OPENROUTER_PROVIDER_ORDER for the measured
+        # per-provider tool-call results behind this pin.
+        provider_routing = {
+            "order": config.OPENROUTER_PROVIDER_ORDER,
+            "allow_fallbacks": config.OPENROUTER_ALLOW_FALLBACKS,
+            # Belt-and-braces for the fallbacks-enabled case: a provider that
+            # does not declare the request's own parameters is never a valid
+            # target for a .with_structured_output() call.
+            "require_parameters": True,
+        }
         return ChatOpenAI(
             model=model,
             temperature=config.LLM_TEMPERATURE,
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY", ""),
+            extra_body={"provider": provider_routing},
         )
     raise ValueError(f"Unsupported LLM_PROVIDER: {config.LLM_PROVIDER}")
 
