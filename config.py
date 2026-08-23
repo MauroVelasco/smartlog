@@ -77,6 +77,23 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")  # "anthropic" | "openai" 
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-5")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
 
+# OpenRouter serves one model id from many independent backend providers and
+# load-balances across them per request. That routing is not neutral for this
+# pipeline: it calls .with_structured_output(CorrelationResult), and several
+# endpoints that advertise "tools"/"structured_outputs" still return
+# unparseable tool-call arguments — measured live on 2026-08-21 for
+# z-ai/glm-5.2, 3 tool calls each: Friendli 3/3 and Fireworks 3/3 valid, but
+# Together 1/3, BaseTen 0/3, Mistral 0/3, with Mistral leaking the model's raw
+# chat-template tokens ('{"<tool_call>CorrelationResult<arg_key>links": ...')
+# into the arguments string. Unpinned, the same run correlates or dies as a
+# pydantic "Invalid JSON" error depending on which backend answered, so the
+# order below is a correctness control, not a preference.
+OPENROUTER_PROVIDER_ORDER: List[str] = _list("OPENROUTER_PROVIDER_ORDER", "Friendli,Fireworks")
+
+# Fallbacks are off by default so routing can never silently escape the
+# verified list above; set this true to trade determinism for availability.
+OPENROUTER_ALLOW_FALLBACKS = _bool("OPENROUTER_ALLOW_FALLBACKS", False)
+
 # ---------------------------------------------------------------------------
 # Relationship Store (Postgres, graph-shaped: events + edges)
 # ---------------------------------------------------------------------------
